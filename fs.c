@@ -355,6 +355,7 @@ iunlockput(struct inode *ip)
 
 // Return the disk block address of the nth block in inode ip.
 // If there is no such block, bmap allocates one.
+
 static uint
 bmap(struct inode *ip, uint bn)
 {
@@ -372,15 +373,48 @@ bmap(struct inode *ip, uint bn)
     // Load indirect block, allocating if necessary.
     if((addr = ip->addrs[NDIRECT]) == 0)
       ip->addrs[NDIRECT] = addr = balloc(ip->dev);
+    
     bp = bread(ip->dev, addr);
     a = (uint*)bp->data;
+    
     if((addr = a[bn]) == 0){
       a[bn] = addr = balloc(ip->dev);
       log_write(bp);
     }
+
     brelse(bp);
     return addr;
   }
+  bn -= NINDIRECT;
+
+//TODO: Currently I believe we're putting the switching the spots of the doubly and singly linked.  Fix!
+
+  if(bn < NDINDIRECT){
+    if((addr = ip->addrs[NDIRECT + 1]) == 0)
+      ip->addrs[NDIRECT+1] = addr = balloc(ip->dev);
+    
+    bp = bread(ip->dev, addr);
+    a = (uint*)bp->data;
+
+    if((addr = a[bn % NINDIRECT]) == 0){ 
+      a[bn % NINDIRECT] = addr = balloc(ip->dev);
+      log_write(bp);
+      }
+
+    brelse(bp);
+ 
+    /*bp = bread(ip->dev, addr);
+    a = (uint*)bp->data;
+    
+    if((addr = a[(bn % NINDIRECT)]) == 0){
+      a[(bn % NINDIRECT)] = addr = balloc(ip->dev);
+      log_write(bp);
+    }
+
+    brelse(bp);*/
+
+    return addr;
+    }
 
   panic("bmap: out of range");
 }
@@ -390,6 +424,9 @@ bmap(struct inode *ip, uint bn)
 // to it (no directory entries referring to it)
 // and has no in-memory reference to it (is
 // not an open file or current directory).
+
+//TODO: Oh, is it because I changed NDIRECT? -> So different below as well? 
+
 static void
 itrunc(struct inode *ip)
 {
